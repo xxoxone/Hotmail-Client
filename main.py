@@ -6,7 +6,7 @@ import re
 from flask import Flask, request, jsonify, render_template_string
 from waitress import serve
 
-APP_NAME = "Email Reader"
+APP_NAME = "MicroMail"
 if sys.platform.startswith('win'):
     os.system(f'title {APP_NAME}')
 else:
