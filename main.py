@@ -1,4 +1,4 @@
-import os
+Import os
 import sys
 import requests
 import json
@@ -230,11 +230,11 @@ UI_TEMPLATE = '''
             const inputElement = document.getElementById('credentials-input');
             let lines = inputElement.value.split('\\n').map(l => l.trim()).filter(l => l !== "");
             
-            // Max input limit set to 100
-            if (lines.length > 100) {
-                lines = lines.slice(0, 100);
+            // Max input limit set to 1000
+            if (lines.length > 1000) {
+                lines = lines.slice(0, 1000);
                 inputElement.value = lines.join('\\n');
-                showToast("Max Limit Reached", "You can only input up to 100 lines at once.");
+                showToast("Max Limit Reached", "You can only input up to 1000 lines at once.");
             }
             return lines;
         }
@@ -242,7 +242,7 @@ UI_TEMPLATE = '''
         function handleInstantInput() {
             clearTimeout(debounceTimer);
             
-            // getValidLines automatically limits and updates input field to 100 lines if exceeded
+            // getValidLines automatically limits and updates input field to 1000 lines if exceeded
             const lines = getValidLines();
             const rawValue = document.getElementById('credentials-input').value;
             
