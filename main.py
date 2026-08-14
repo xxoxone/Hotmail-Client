@@ -1,16 +1,25 @@
 import os
 import sys
+import threading
 import requests
 import json
 import re
 from flask import Flask, request, jsonify, render_template_string
 from waitress import serve
+import telebot
+from telebot.types import ReplyKeyboardMarkup, KeyboardButton
 
 APP_NAME = "MicroMail"
 if sys.platform.startswith('win'):
     os.system(f'title {APP_NAME}')
 else:
     sys.stdout.write(f"\x1b]2;{APP_NAME}\x07")
+
+TELEGRAM_BOT_TOKEN = "8638578717:AAGwsAjIv8c5SFZKnbxgf7GPTdKURs4NPVg"
+bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
+
+# User session storage for telegram bot
+user_sessions = {}
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
@@ -69,22 +78,17 @@ class EmailClient:
 
     @staticmethod
     def extract_otp(subject, preview, body):
-        """Prioritized & highly accurate OTP extractor (handles numbers & alphanumeric codes like 82O-FP4)"""
+        """Prioritized & highly accurate OTP extractor"""
         clean_body = EmailClient.clean_html(body)
         
-        # High Priority Context Patterns (Directly after keywords like 'confirmation code:', 'code:', etc.)
         context_patterns = [
-            # Captures 'confirmation code: 82O-FP4', 'code: 123456', 'Verification code - 892-123'
             r'(?:confirmation\s+code|verification\s+code|security\s+code|passcode|otp|code|pin)\s*(?:is|:|-)?\s*<b>?\s*([A-Za-z0-9]{3,6}(?:-[A-Za-z0-9]{3,6})?|[0-9]{4,8})\b',
-            # Captures 'use 82O-FP4 to verify', 'enter 123456 as your'
             r'(?:enter|use)\s+([A-Za-z0-9]{3,6}(?:-[A-Za-z0-9]{3,6})?|[0-9]{4,8})\s+(?:to\s+verify|as\s+your)',
-            # Captures '82O-FP4 is your verification code'
             r'([A-Za-z0-9]{3,6}(?:-[A-Za-z0-9]{3,6})?|[0-9]{4,8})\s+is\s+your\s+(?:security\s+code|verification\s+code|confirmation\s+code|otp|code)'
         ]
         
         ignored_words = {'below', 'here', 'your', 'this', 'that', 'from', 'with', 'code'}
 
-        # 1. Priority 1: Check in subject line (highest accuracy)
         for pat in context_patterns:
             m = re.search(pat, subject, re.IGNORECASE)
             if m:
@@ -92,7 +96,6 @@ class EmailClient:
                 if code.lower() not in ignored_words:
                     return code
 
-        # 2. Priority 2: Check in preview text
         for pat in context_patterns:
             m = re.search(pat, preview, re.IGNORECASE)
             if m:
@@ -100,7 +103,6 @@ class EmailClient:
                 if code.lower() not in ignored_words:
                     return code
 
-        # 3. Priority 3: Check in cleaned body text
         for pat in context_patterns:
             m = re.search(pat, clean_body, re.IGNORECASE)
             if m:
@@ -108,12 +110,11 @@ class EmailClient:
                 if code.lower() not in ignored_words:
                     return code
 
-        # 4. Priority 4: Fallback to strict patterns (Excluding years like 2020-2035)
         fallback_patterns = [
-            r'\b([A-Za-z0-9]{3,4}-[A-Za-z0-9]{3,4})\b',       # e.g., 82O-FP4 or 123-456
-            r'\b(\d{3}[-\s]\d{3})\b',                         # e.g., 123 456
-            r'\b(\d{6})\b',                                    # e.g., 490153
-            r'\b(?!(?:19\d{2}|20[2-3]\d)\b)(\d{4,8})\b'       # 4-8 digits ignoring years (e.g. 2026)
+            r'\b([A-Za-z0-9]{3,4}-[A-Za-z0-9]{3,4})\b',
+            r'\b(\d{3}[-\s]\d{3})\b',
+            r'\b(\d{6})\b',
+            r'\b(?!(?:19\d{2}|20[2-3]\d)\b)(\d{4,8})\b'
         ]
         
         for pat in fallback_patterns:
@@ -153,10 +154,10 @@ UI_TEMPLATE = '''
         }
     </style>
 </head>
-<body class="bg-slate-100 min-h-screen text-slate-800 p-4 md:p-8 relative">
+<body class="bg-slate-100 min-h-screen text-slate-800 p-4 md:p-8 pb-28 relative">
 
     <!-- Toast Notification -->
-    <div id="toast" class="fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-5 py-3.5 rounded-2xl shadow-2xl border border-slate-700 flex items-center gap-3">
+    <div id="toast" class="fixed bottom-20 right-6 z-50 bg-slate-900 text-white px-5 py-3.5 rounded-2xl shadow-2xl border border-slate-700 flex items-center gap-3">
         <div class="w-7 h-7 bg-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center shrink-0">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg>
         </div>
@@ -190,7 +191,7 @@ UI_TEMPLATE = '''
         <!-- Main Form Section -->
         <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
             
-            <!-- Large Prominent Counters Row -->
+            <!-- Counters Row -->
             <div class="grid grid-cols-2 gap-4 mb-6">
                 <div class="bg-indigo-50/70 border border-indigo-100 rounded-xl p-4 flex items-center justify-between">
                     <div>
@@ -229,7 +230,6 @@ UI_TEMPLATE = '''
 
                 <div id="error-msg" class="hidden p-3 bg-red-50 text-red-600 text-xs rounded-lg border border-red-100"></div>
 
-                <!-- Swapped Buttons -->
                 <div class="flex items-center gap-3">
                     <button type="button" onclick="loadNextEmail()" class="bg-slate-800 hover:bg-slate-900 text-white font-medium px-5 py-3 rounded-xl shadow-md transition text-sm flex items-center gap-1.5 shrink-0">
                         <svg class="w-4 h-4 rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7"></path></svg>
@@ -269,6 +269,25 @@ UI_TEMPLATE = '''
             </div>
         </div>
 
+    </div>
+
+    <!-- Prominent Sticky Telegram Banner -->
+    <div class="fixed bottom-3 inset-x-4 max-w-3xl mx-auto z-40">
+        <a href="https://t.me/MicroMail_Bot" target="_blank" class="flex items-center justify-between bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-600 hover:to-indigo-700 text-white px-5 py-3 rounded-2xl shadow-xl shadow-indigo-500/25 border border-white/20 transition-all duration-300 transform hover:-translate-y-0.5">
+            <div class="flex items-center gap-3">
+                <div class="bg-white/20 p-2 rounded-xl backdrop-blur-sm">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.446 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.121l-6.871 4.326-2.962-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.194 1.006.131.832.922z"/></svg>
+                </div>
+                <div>
+                    <span class="text-[10px] font-extrabold uppercase tracking-widest text-sky-200 block">Fast Telegram Bot Available</span>
+                    <span class="text-sm font-bold">Check Our Telegram Bot: <span class="underline underline-offset-2">@MicroMail_Bot</span></span>
+                </div>
+            </div>
+            <div class="bg-white text-indigo-600 px-3.5 py-1.5 rounded-xl font-bold text-xs shadow-sm shrink-0 flex items-center gap-1">
+                <span>Open Bot</span>
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+            </div>
+        </a>
     </div>
 
     <script>
@@ -578,10 +597,8 @@ def get_otp():
             preview_text = msg.get('bodyPreview', '')
             body_content = msg.get('body', {}).get('content', '')
             
-            # Extract OTP accurately
             otp = EmailClient.extract_otp(subject, preview_text, body_content)
             
-            # Deduplication key
             unique_identifier = otp if otp else f"{subject}_{date_str}"
             if unique_identifier in seen_keys:
                 continue
@@ -602,7 +619,140 @@ def get_otp():
         print(f"Error: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
+
+# ==========================================
+# TELEGRAM BOT CONTROLLER (PRODUCTION EDIT FLOW)
+# ==========================================
+
+def get_reply_keyboard():
+    """Build permanent bottom reply keyboard"""
+    markup = ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.row(
+        KeyboardButton("🔄 Check OTP"),
+        KeyboardButton("⏭ Next Email")
+    )
+    return markup
+
+@bot.message_handler(commands=['start'])
+def handle_start(message):
+    welcome_text = (
+        "👋 *Welcome to MicroMail Bot!*\n\n"
+        "Send your credentials list (Max 5 lines at a time).\n"
+        "Format:\n"
+        "`email|password|refresh_token|client_id`"
+    )
+    bot.reply_to(message, welcome_text, parse_mode='Markdown', reply_markup=get_reply_keyboard())
+
+@bot.message_handler(func=lambda msg: msg.text in ["🔄 Check OTP", "Check OTP", "Check", "check"])
+def handle_check_otp_button(message):
+    chat_id = message.chat.id
+    lines = user_sessions.get(chat_id, [])
+
+    if not lines:
+        bot.reply_to(message, "⚠️ No credentials found. Please send credentials first!", reply_markup=get_reply_keyboard())
+        return
+
+    # 1. Send initial loading state message
+    status_msg = bot.reply_to(message, "⏳ *Checking OTP...*", parse_mode='Markdown')
+
+    first_line = lines[0]
+    parts = first_line.split('|')
+    
+    if len(parts) < 4:
+        bot.edit_message_text("❌ Invalid credential format in active line!", chat_id=chat_id, message_id=status_msg.message_id)
+        return
+        
+    email = parts[0].strip()
+    refresh_token = parts[2].strip()
+    client_id = parts[3].strip()
+
+    access_token = EmailClient.get_access_token(client_id, refresh_token)
+    if not access_token:
+        bot.edit_message_text(f"❌ Authentication failed for `{email}`", chat_id=chat_id, message_id=status_msg.message_id, parse_mode='Markdown')
+        return
+
+    messages = EmailClient.get_messages(access_token, top=30)
+    found_otps = []
+    seen_otps = set()
+
+    for msg in messages:
+        subject = msg.get('subject', 'No Subject')
+        preview_text = msg.get('bodyPreview', '')
+        body_content = msg.get('body', {}).get('content', '')
+        
+        otp = EmailClient.extract_otp(subject, preview_text, body_content)
+        if otp and otp not in seen_otps:
+            seen_otps.add(otp)
+            found_otps.append(f"Subject: {subject}\nOTP: `{otp}`")
+
+    # 2. Edit the loading message with final results
+    if found_otps:
+        reply_msg = "\n\n".join(found_otps)
+        bot.edit_message_text(reply_msg, chat_id=chat_id, message_id=status_msg.message_id, parse_mode='Markdown')
+    else:
+        bot.edit_message_text(f"🔍 No OTP found yet for `{email}`", chat_id=chat_id, message_id=status_msg.message_id, parse_mode='Markdown')
+
+@bot.message_handler(func=lambda msg: msg.text in ["⏭ Next Email", "Next Email", "Next", "next"])
+def handle_next_email_button(message):
+    chat_id = message.chat.id
+    lines = user_sessions.get(chat_id, [])
+
+    if not lines:
+        bot.reply_to(message, "⚠️ Queue is empty! Send new credentials to continue.", reply_markup=get_reply_keyboard())
+        return
+
+    lines.pop(0)
+    user_sessions[chat_id] = lines
+
+    if not lines:
+        bot.reply_to(message, "🏁 All emails processed! Send new credentials to continue.", reply_markup=get_reply_keyboard())
+        return
+
+    next_email = lines[0].split('|')[0].strip()
+    bot.reply_to(
+        message, 
+        f"📧 Next Active Email: `{next_email}`\nRemaining in Queue: {len(lines)}", 
+        parse_mode='Markdown', 
+        reply_markup=get_reply_keyboard()
+    )
+
+@bot.message_handler(func=lambda msg: True)
+def handle_credentials_input(message):
+    chat_id = message.chat.id
+    raw_text = message.text.strip()
+    
+    lines = [l.strip() for l in raw_text.split('\n') if l.strip()]
+    if not lines:
+        bot.reply_to(message, "⚠️ Please send valid credentials!", reply_markup=get_reply_keyboard())
+        return
+
+    if len(lines) > 5:
+        lines = lines[:5]
+        bot.reply_to(message, "⚠️ Max 5 lines allowed per batch! Taking the first 5 lines.")
+
+    user_sessions[chat_id] = lines
+    current_email = lines[0].split('|')[0].strip()
+
+    status_text = (
+        f"✅ Loaded {len(lines)} email(s).\n\n"
+        f"📧 Current Active Email: `{current_email}`\n"
+        f"Remaining in Queue: {len(lines)}"
+    )
+    bot.reply_to(message, status_text, parse_mode='Markdown', reply_markup=get_reply_keyboard())
+
+def run_telegram_bot():
+    print(f"[{APP_NAME}] Telegram Bot is starting...")
+    while True:
+        try:
+            bot.infinity_polling(timeout=10, long_polling_timeout=5)
+        except Exception as e:
+            print(f"Telegram Bot error: {e}")
+
 if __name__ == '__main__':
+    # Start Telegram Bot in background thread
+    tg_thread = threading.Thread(target=run_telegram_bot, daemon=True)
+    tg_thread.start()
+
     port = int(os.getenv('PORT', 5000))
-    print(f"[{APP_NAME}] Serving on http://0.0.0.0:{port} ...")
+    print(f"[{APP_NAME}] Web server serving on http://0.0.0.0:{port} ...")
     serve(app, host='0.0.0.0', port=port)
