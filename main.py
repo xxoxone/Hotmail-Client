@@ -59,23 +59,73 @@ class EmailClient:
             return []
 
     @staticmethod
-    def extract_otp(text):
-        """Extract OTP / Verification code from string matching various formats"""
-        if not text:
-            return None
+    def clean_html(raw_html):
+        """Remove html tags to avoid matching CSS/tag numbers as OTP"""
+        if not raw_html:
+            return ""
+        cleanr = re.compile('<.*?>')
+        cleantext = re.sub(cleanr, ' ', raw_html)
+        return ' '.join(cleantext.split())
+
+    @staticmethod
+    def extract_otp(subject, preview, body):
+        """Prioritized & highly accurate OTP extractor (handles numbers & alphanumeric codes like 82O-FP4)"""
+        clean_body = EmailClient.clean_html(body)
         
-        patterns = [
-            r'(?:code|otp|pin|verification|passcode|confirm)[^\d]*(\d{3,4}[-\s]?\d{3,4}[-\s]?\d{0,4})',
-            r'\b(\d{3,4}[-\s]\d{3,4}(?:[-\s]\d{3,4})?)\b',
-            r'\b(\d{4,8})\b'
+        # High Priority Context Patterns (Directly after keywords like 'confirmation code:', 'code:', etc.)
+        context_patterns = [
+            # Captures 'confirmation code: 82O-FP4', 'code: 123456', 'Verification code - 892-123'
+            r'(?:confirmation\s+code|verification\s+code|security\s+code|passcode|otp|code|pin)\s*(?:is|:|-)?\s*<b>?\s*([A-Za-z0-9]{3,6}(?:-[A-Za-z0-9]{3,6})?|[0-9]{4,8})\b',
+            # Captures 'use 82O-FP4 to verify', 'enter 123456 as your'
+            r'(?:enter|use)\s+([A-Za-z0-9]{3,6}(?:-[A-Za-z0-9]{3,6})?|[0-9]{4,8})\s+(?:to\s+verify|as\s+your)',
+            # Captures '82O-FP4 is your verification code'
+            r'([A-Za-z0-9]{3,6}(?:-[A-Za-z0-9]{3,6})?|[0-9]{4,8})\s+is\s+your\s+(?:security\s+code|verification\s+code|confirmation\s+code|otp|code)'
         ]
         
-        for pattern in patterns:
-            match = re.search(pattern, text, re.IGNORECASE)
-            if match:
-                otp_code = match.group(1).strip()
-                if len(re.sub(r'\D', '', otp_code)) >= 4:
-                    return otp_code
+        ignored_words = {'below', 'here', 'your', 'this', 'that', 'from', 'with', 'code'}
+
+        # 1. Priority 1: Check in subject line (highest accuracy)
+        for pat in context_patterns:
+            m = re.search(pat, subject, re.IGNORECASE)
+            if m:
+                code = m.group(1).strip()
+                if code.lower() not in ignored_words:
+                    return code
+
+        # 2. Priority 2: Check in preview text
+        for pat in context_patterns:
+            m = re.search(pat, preview, re.IGNORECASE)
+            if m:
+                code = m.group(1).strip()
+                if code.lower() not in ignored_words:
+                    return code
+
+        # 3. Priority 3: Check in cleaned body text
+        for pat in context_patterns:
+            m = re.search(pat, clean_body, re.IGNORECASE)
+            if m:
+                code = m.group(1).strip()
+                if code.lower() not in ignored_words:
+                    return code
+
+        # 4. Priority 4: Fallback to strict patterns (Excluding years like 2020-2035)
+        fallback_patterns = [
+            r'\b([A-Za-z0-9]{3,4}-[A-Za-z0-9]{3,4})\b',       # e.g., 82O-FP4 or 123-456
+            r'\b(\d{3}[-\s]\d{3})\b',                         # e.g., 123 456
+            r'\b(\d{6})\b',                                    # e.g., 490153
+            r'\b(?!(?:19\d{2}|20[2-3]\d)\b)(\d{4,8})\b'       # 4-8 digits ignoring years (e.g. 2026)
+        ]
+        
+        for pat in fallback_patterns:
+            m = re.search(pat, preview)
+            if m:
+                return m.group(1).replace(" ", "")
+                
+        for pat in fallback_patterns:
+            m = re.search(pat, clean_body)
+            if m:
+                return m.group(1).replace(" ", "")
+
         return None
 
 UI_TEMPLATE = '''
@@ -116,6 +166,25 @@ UI_TEMPLATE = '''
         </div>
     </div>
 
+    <!-- Modal for Full Email View -->
+    <div id="email-modal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[85vh]">
+            <div class="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                <div class="min-w-0 pr-4">
+                    <h3 id="modal-subject" class="font-bold text-slate-800 text-sm md:text-base truncate"></h3>
+                    <p id="modal-from" class="text-xs text-slate-500 mt-0.5 truncate"></p>
+                </div>
+                <button type="button" onclick="closeModal()" class="text-slate-400 hover:text-slate-600 bg-slate-200 hover:bg-slate-300 p-1.5 rounded-lg transition shrink-0">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            <div class="p-6 overflow-y-auto flex-1 text-sm text-slate-700 leading-relaxed font-sans" id="modal-body"></div>
+            <div class="p-3 bg-slate-50 border-t border-slate-200 flex justify-end">
+                <button type="button" onclick="closeModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-medium rounded-lg transition">Close</button>
+            </div>
+        </div>
+    </div>
+
     <div class="max-w-3xl mx-auto space-y-6">
         
         <!-- Main Form Section -->
@@ -146,7 +215,6 @@ UI_TEMPLATE = '''
 
             <form id="otp-form" onsubmit="handleFetchOtp(event)" class="space-y-4">
                 <div>
-                    <!-- Header Row with Label & Clear All Button -->
                     <div class="flex items-center justify-between mb-2">
                         <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider">Bulk Credentials Input</label>
                         
@@ -161,16 +229,16 @@ UI_TEMPLATE = '''
 
                 <div id="error-msg" class="hidden p-3 bg-red-50 text-red-600 text-xs rounded-lg border border-red-100"></div>
 
+                <!-- Swapped Buttons -->
                 <div class="flex items-center gap-3">
+                    <button type="button" onclick="loadNextEmail()" class="bg-slate-800 hover:bg-slate-900 text-white font-medium px-5 py-3 rounded-xl shadow-md transition text-sm flex items-center gap-1.5 shrink-0">
+                        <svg class="w-4 h-4 rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7"></path></svg>
+                        <span>Next Email</span>
+                    </button>
+
                     <button type="submit" id="submit-btn" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 rounded-xl shadow-md transition text-sm flex items-center justify-center gap-2">
                         <span>Fetch OTP / Code</span>
                         <svg id="btn-spinner" class="w-4 h-4 hidden animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                    </button>
-
-                    <!-- Next Email Button -->
-                    <button type="button" onclick="loadNextEmail()" class="bg-slate-800 hover:bg-slate-900 text-white font-medium px-5 py-3 rounded-xl shadow-md transition text-sm flex items-center gap-1.5 shrink-0">
-                        <span>Next Email</span>
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7"></path></svg>
                     </button>
                 </div>
             </form>
@@ -190,7 +258,7 @@ UI_TEMPLATE = '''
         <!-- Results Display -->
         <div class="space-y-3">
             <div class="flex justify-between items-center px-1">
-                <h2 class="text-xs font-bold uppercase text-slate-400 tracking-wider">Latest Received Codes / OTPs</h2>
+                <h2 class="text-xs font-bold uppercase text-slate-400 tracking-wider">Latest Received Codes / OTPs (Click card to view full email)</h2>
                 <span id="mail-count" class="text-xs bg-slate-200 text-slate-600 font-semibold px-2 py-0.5 rounded-full">0</span>
             </div>
 
@@ -207,6 +275,7 @@ UI_TEMPLATE = '''
         let currentExtractedEmail = "";
         let debounceTimer = null;
         let initialTotalCount = 0;
+        let fetchedEmailsList = [];
 
         window.addEventListener('DOMContentLoaded', () => {
             try {
@@ -230,7 +299,6 @@ UI_TEMPLATE = '''
             const inputElement = document.getElementById('credentials-input');
             let lines = inputElement.value.split('\\n').map(l => l.trim()).filter(l => l !== "");
             
-            // Max input limit set to 1000
             if (lines.length > 1000) {
                 lines = lines.slice(0, 1000);
                 inputElement.value = lines.join('\\n');
@@ -241,8 +309,6 @@ UI_TEMPLATE = '''
 
         function handleInstantInput() {
             clearTimeout(debounceTimer);
-            
-            // getValidLines automatically limits and updates input field to 1000 lines if exceeded
             const lines = getValidLines();
             const rawValue = document.getElementById('credentials-input').value;
             
@@ -291,7 +357,7 @@ UI_TEMPLATE = '''
 
         function loadNextEmail() {
             const input = document.getElementById('credentials-input');
-            const lines = input.value.split('\\n');
+            let lines = input.value.split('\\n');
             
             while (lines.length > 0 && lines[0].trim() === "") {
                 lines.shift();
@@ -308,6 +374,7 @@ UI_TEMPLATE = '''
                 </div>
             `;
             document.getElementById('mail-count').innerText = "0";
+            fetchedEmailsList = [];
 
             handleInstantInput();
         }
@@ -332,6 +399,7 @@ UI_TEMPLATE = '''
             `;
             document.getElementById('mail-count').innerText = "0";
             currentExtractedEmail = "";
+            fetchedEmailsList = [];
         }
 
         async function handleFetchOtp(event) {
@@ -371,31 +439,32 @@ UI_TEMPLATE = '''
                 const data = await response.json();
 
                 if (data.success) {
-                    const emails = data.emails || [];
-                    document.getElementById('mail-count').innerText = emails.length;
+                    fetchedEmailsList = data.emails || [];
+                    document.getElementById('mail-count').innerText = fetchedEmailsList.length;
 
-                    if (emails.length === 0) {
+                    if (fetchedEmailsList.length === 0) {
                         resultsDiv.innerHTML = `<div class="bg-white rounded-xl p-6 text-center text-slate-500 text-sm border border-slate-200">No emails found!</div>`;
                         return;
                     }
 
-                    resultsDiv.innerHTML = emails.map(item => {
+                    resultsDiv.innerHTML = fetchedEmailsList.map((item, index) => {
                         return `
-                            <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+                            <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-sm hover:border-indigo-300 transition cursor-pointer flex flex-col md:flex-row md:items-center justify-between gap-4" onclick="openEmailModal(${index})">
                                 <div class="space-y-1 min-w-0 flex-1">
                                     <div class="flex items-center gap-2">
                                         <span class="text-xs font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md truncate max-w-[150px]">${escapeHtml(item.from)}</span>
                                         <span class="text-[11px] text-slate-400">${item.date}</span>
                                     </div>
                                     <h3 class="text-sm font-medium text-slate-800 truncate">${escapeHtml(item.subject)}</h3>
+                                    <p class="text-xs text-slate-400 truncate">${escapeHtml(item.preview || '')}</p>
                                 </div>
 
-                                <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 flex items-center justify-between md:justify-end gap-3 min-w-[160px]">
+                                <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 flex items-center justify-between md:justify-end gap-3 min-w-[160px]" onclick="event.stopPropagation()">
                                     <div class="text-right">
                                         <div class="text-[10px] text-slate-400 font-semibold uppercase">Verification Code</div>
-                                        <div class="text-xl font-extrabold text-slate-900 tracking-wider font-mono">${item.otp ? item.otp : '<span class="text-xs font-normal text-slate-400">No OTP found</span>'}</div>
+                                        <div class="text-xl font-extrabold text-slate-900 tracking-wider font-mono">${item.otp ? item.otp : '<span class="text-xs font-normal text-slate-400">No OTP</span>'}</div>
                                     </div>
-                                    ${item.otp ? `<button type="button" onclick="copyToClipboard('${item.otp}', 'OTP Copied!', '${item.otp}')" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs px-3 py-2 rounded-lg transition font-medium">Copy</button>` : ''}
+                                    ${item.otp ? `<button type="button" onclick="copyToClipboard('${item.otp}', 'OTP Copied!', '${item.otp}')" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs px-3 py-2 rounded-lg transition font-medium shadow-sm">Copy</button>` : ''}
                                 </div>
                             </div>
                         `;
@@ -413,6 +482,23 @@ UI_TEMPLATE = '''
                 submitBtn.disabled = false;
                 btnSpinner.classList.add('hidden');
             }
+        }
+
+        function openEmailModal(index) {
+            const email = fetchedEmailsList[index];
+            if (!email) return;
+
+            document.getElementById('modal-subject').innerText = email.subject || 'No Subject';
+            document.getElementById('modal-from').innerText = `From: ${email.from} | Time: ${email.date}`;
+            
+            const bodyContent = email.body || email.preview || 'No content available';
+            document.getElementById('modal-body').innerHTML = bodyContent;
+
+            document.getElementById('email-modal').classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('email-modal').classList.add('hidden');
         }
 
         function manualCopyEmail() {
@@ -442,6 +528,7 @@ UI_TEMPLATE = '''
         }
 
         function escapeHtml(text) {
+            if (!text) return '';
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
@@ -463,7 +550,7 @@ def get_otp():
         
         parts = credentials.split('|')
         if len(parts) < 4:
-            return jsonify({'success': False, 'error': 'Invalid credentials string'}), 400
+            return jsonify({'success': False, 'error': 'Invalid credentials format'}), 400
         
         email = parts[0].strip()
         refresh_token = parts[2].strip()
@@ -471,12 +558,13 @@ def get_otp():
         
         access_token = EmailClient.get_access_token(client_id, refresh_token)
         if not access_token:
-            return jsonify({'success': False, 'error': 'Authentication failed! Check your refresh_token or client_id.'}), 401
+            return jsonify({'success': False, 'error': 'Authentication failed! Check refresh_token or client_id.'}), 401
         
-        # Max limit set to 100
         messages = EmailClient.get_messages(access_token, top=100)
         
         parsed_emails = []
+        seen_keys = set()
+
         for msg in messages:
             from_addr = msg.get('from', {}).get('emailAddress', {}).get('name') or msg.get('from', {}).get('emailAddress', {}).get('address', 'Unknown')
             subject = msg.get('subject', 'No Subject')
@@ -490,14 +578,22 @@ def get_otp():
             preview_text = msg.get('bodyPreview', '')
             body_content = msg.get('body', {}).get('content', '')
             
-            full_text = f"{subject} {preview_text} {body_content}"
-            otp = EmailClient.extract_otp(full_text)
+            # Extract OTP accurately
+            otp = EmailClient.extract_otp(subject, preview_text, body_content)
             
+            # Deduplication key
+            unique_identifier = otp if otp else f"{subject}_{date_str}"
+            if unique_identifier in seen_keys:
+                continue
+            seen_keys.add(unique_identifier)
+
             parsed_emails.append({
                 'from': from_addr,
                 'subject': subject,
                 'date': date,
-                'otp': otp
+                'otp': otp,
+                'preview': preview_text,
+                'body': body_content
             })
             
         return jsonify({'success': True, 'emails': parsed_emails})
