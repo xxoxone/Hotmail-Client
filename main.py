@@ -1,27 +1,16 @@
 import os
 import sys
-import threading
-import time
 import requests
 import json
 import re
 from flask import Flask, request, jsonify, render_template_string
 from waitress import serve
-import telebot
-from telebot.types import ReplyKeyboardMarkup, KeyboardButton
 
 APP_NAME = "MicroMail"
 if sys.platform.startswith('win'):
     os.system(f'title {APP_NAME}')
 else:
     sys.stdout.write(f"\x1b]2;{APP_NAME}\x07")
-
-TELEGRAM_BOT_TOKEN = "8638578717:AAGwsAjIv8c5SFZKnbxgf7GPTdKURs4NPVg"
-bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
-
-# User session storage for telegram bot: {chat_id: {'lines': [...], 'timestamp': time.time()}}
-user_sessions = {}
-SESSION_EXPIRY_SECONDS = 3 * 60 * 60  # 3 Hours
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
@@ -169,30 +158,6 @@ UI_TEMPLATE = '''
         </div>
     </div>
 
-    <!-- On-Load Promo Popup Modal -->
-    <div id="promo-modal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
-        <div class="bg-white w-full max-w-sm rounded-3xl shadow-2xl border border-slate-100 p-6 text-center space-y-4 animate-in fade-in zoom-in duration-200">
-            <div class="w-16 h-16 bg-sky-50 text-sky-500 rounded-2xl flex items-center justify-center mx-auto shadow-inner">
-                <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.446 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.121l-6.871 4.326-2.962-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.194 1.006.131.832.922z"/></svg>
-            </div>
-            
-            <div class="space-y-1">
-                <h3 class="text-base font-bold text-slate-900">Try Our Telegram Bot!</h3>
-                <p class="text-xs text-slate-500">Access fast OTP extraction directly via Telegram Bot anytime.</p>
-            </div>
-
-            <div class="pt-2 flex flex-col gap-2">
-                <a href="https://t.me/MicroMail_Bot" target="_blank" class="w-full bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-600 hover:to-indigo-700 text-white font-semibold py-2.5 rounded-xl shadow-md transition text-xs flex items-center justify-center gap-2">
-                    <span>Open @MicroMail_Bot</span>
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
-                </a>
-                <button type="button" onclick="closePromoModal()" class="w-full py-2.5 text-xs text-slate-500 hover:text-slate-700 font-medium rounded-xl hover:bg-slate-50 transition">
-                    Continue to Web App
-                </button>
-            </div>
-        </div>
-    </div>
-
     <!-- Modal for Full Email View -->
     <div id="email-modal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
         <div class="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[85vh]">
@@ -218,20 +183,10 @@ UI_TEMPLATE = '''
         <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
             
             <!-- Counters Row -->
-            <div class="grid grid-cols-2 gap-4 mb-6">
-                <div class="bg-indigo-50/70 border border-indigo-100 rounded-xl p-4 flex items-center justify-between">
-                    <div>
-                        <span class="text-xs font-bold uppercase tracking-wider text-indigo-500 block">Total Emails</span>
-                        <span id="count-total" class="text-2xl font-extrabold text-indigo-900 font-mono">0</span>
-                    </div>
-                    <div class="p-2.5 bg-indigo-100 text-indigo-600 rounded-lg">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
-                    </div>
-                </div>
-
+            <div class="grid grid-cols-1 gap-4 mb-6">
                 <div class="bg-amber-50/70 border border-amber-100 rounded-xl p-4 flex items-center justify-between">
                     <div>
-                        <span class="text-xs font-bold uppercase tracking-wider text-amber-600 block">Remaining</span>
+                        <span class="text-xs font-bold uppercase tracking-wider text-amber-600 block">Remaining Emails</span>
                         <span id="count-remaining" class="text-2xl font-extrabold text-amber-900 font-mono">0</span>
                     </div>
                     <div class="p-2.5 bg-amber-100 text-amber-600 rounded-lg">
@@ -256,15 +211,17 @@ UI_TEMPLATE = '''
 
                 <div id="error-msg" class="hidden p-3 bg-red-50 text-red-600 text-xs rounded-lg border border-red-100"></div>
 
-                <div class="flex items-center gap-3">
-                    <button type="button" onclick="loadNextEmail()" class="bg-slate-800 hover:bg-slate-900 text-white font-medium px-5 py-3 rounded-xl shadow-md transition text-sm flex items-center gap-1.5 shrink-0">
-                        <svg class="w-4 h-4 rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7"></path></svg>
-                        <span>Next Email</span>
-                    </button>
-
-                    <button type="submit" id="submit-btn" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 rounded-xl shadow-md transition text-sm flex items-center justify-center gap-2">
+                <div class="flex flex-col gap-3">
+                    <button type="submit" id="submit-btn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 rounded-xl shadow-md transition text-sm flex items-center justify-center gap-2">
                         <span>Fetch OTP / Code</span>
                         <svg id="btn-spinner" class="w-4 h-4 hidden animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                    </button>
+
+                    <button type="button" id="next-btn" onclick="handleNextButtonClick()" class="w-full bg-slate-800 hover:bg-slate-900 text-white font-medium py-3 rounded-xl shadow-md transition-all duration-200 text-sm flex items-center justify-center gap-2">
+                        <span id="next-btn-icon">
+                            <svg class="w-4 h-4 rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7"></path></svg>
+                        </span>
+                        <span id="next-btn-text">Next Email</span>
                     </button>
                 </div>
             </form>
@@ -295,45 +252,23 @@ UI_TEMPLATE = '''
             </div>
         </div>
 
-        <!-- Compact Bottom Non-floating Footer -->
-        <div class="pt-4 pb-2">
-            <a href="https://t.me/MicroMail_Bot" target="_blank" class="flex items-center justify-between bg-white hover:bg-slate-50 border border-slate-200 rounded-xl p-3.5 transition shadow-sm group">
-                <div class="flex items-center gap-3">
-                    <div class="w-8 h-8 bg-sky-50 text-sky-500 rounded-lg flex items-center justify-center shrink-0">
-                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.446 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.121l-6.871 4.326-2.962-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.194 1.006.131.832.922z"/></svg>
-                    </div>
-                    <div>
-                        <p class="text-xs font-semibold text-slate-700">Check Our Telegram Bot</p>
-                        <p class="text-[11px] text-slate-400 font-mono">@MicroMail_Bot</p>
-                    </div>
-                </div>
-                <div class="text-xs font-semibold text-indigo-600 group-hover:translate-x-0.5 transition flex items-center gap-1">
-                    <span>Open</span>
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-                </div>
-            </a>
-        </div>
-
     </div>
 
     <script>
         let currentExtractedEmail = "";
         let debounceTimer = null;
-        let initialTotalCount = 0;
         let fetchedEmailsList = [];
+        let nextBtnConfirmPending = false;
+        let nextBtnTimer = null;
+
+        const iconNextNormal = `<svg class="w-4 h-4 rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7"></path></svg>`;
+        const iconNextAlert = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>`;
 
         window.addEventListener('DOMContentLoaded', () => {
-            showPromoModal();
-
             try {
                 const savedInput = localStorage.getItem('email_reader_credentials');
-                const savedTotal = localStorage.getItem('email_reader_total_count');
-
                 if (savedInput !== null) {
                     document.getElementById('credentials-input').value = savedInput;
-                }
-                if (savedTotal !== null) {
-                    initialTotalCount = parseInt(savedTotal) || 0;
                 }
             } catch (e) {
                 console.error("LocalStorage error:", e);
@@ -341,14 +276,6 @@ UI_TEMPLATE = '''
 
             handleInstantInput();
         });
-
-        function showPromoModal() {
-            document.getElementById('promo-modal').classList.remove('hidden');
-        }
-
-        function closePromoModal() {
-            document.getElementById('promo-modal').classList.add('hidden');
-        }
 
         function getValidLines() {
             const inputElement = document.getElementById('credentials-input');
@@ -373,16 +300,8 @@ UI_TEMPLATE = '''
                 console.error("Failed to save to localStorage:", e);
             }
 
-            if (lines.length > initialTotalCount) {
-                initialTotalCount = lines.length;
-                try { localStorage.setItem('email_reader_total_count', initialTotalCount); } catch(e){}
-            } else if (lines.length === 0) {
-                initialTotalCount = 0;
-                try { localStorage.setItem('email_reader_total_count', 0); } catch(e){}
-            }
-
-            document.getElementById('count-total').innerText = initialTotalCount;
-            document.getElementById('count-remaining').innerText = lines.length;
+            const remainingCount = lines.length > 0 ? lines.length - 1 : 0;
+            document.getElementById('count-remaining').innerText = remainingCount;
 
             debounceTimer = setTimeout(() => {
                 const emailBox = document.getElementById('email-display-box');
@@ -401,13 +320,45 @@ UI_TEMPLATE = '''
                     const extractedEmail = parts[0].trim();
                     document.getElementById('target-email-text').innerText = extractedEmail;
                     emailBox.classList.remove('hidden');
-
-                    if (currentExtractedEmail !== extractedEmail) {
-                        currentExtractedEmail = extractedEmail;
-                        copyToClipboard(currentExtractedEmail, "Email Address Copied!", currentExtractedEmail);
-                    }
+                    currentExtractedEmail = extractedEmail;
                 }
             }, 200);
+        }
+
+        function handleNextButtonClick() {
+            const nextBtn = document.getElementById('next-btn');
+            const nextBtnText = document.getElementById('next-btn-text');
+            const nextBtnIcon = document.getElementById('next-btn-icon');
+
+            if (!nextBtnConfirmPending) {
+                nextBtnConfirmPending = true;
+                nextBtn.classList.remove('bg-slate-800', 'hover:bg-slate-900');
+                nextBtn.classList.add('bg-rose-600', 'hover:bg-rose-700', 'ring-2', 'ring-rose-300');
+                nextBtnIcon.innerHTML = iconNextAlert;
+                nextBtnText.innerText = "Click again to Confirm Next";
+
+                clearTimeout(nextBtnTimer);
+                nextBtnTimer = setTimeout(() => {
+                    resetNextButton();
+                }, 3000);
+            } else {
+                resetNextButton();
+                loadNextEmail();
+            }
+        }
+
+        function resetNextButton() {
+            nextBtnConfirmPending = false;
+            clearTimeout(nextBtnTimer);
+            const nextBtn = document.getElementById('next-btn');
+            const nextBtnText = document.getElementById('next-btn-text');
+            const nextBtnIcon = document.getElementById('next-btn-icon');
+            if (nextBtn && nextBtnText && nextBtnIcon) {
+                nextBtn.classList.remove('bg-rose-600', 'hover:bg-rose-700', 'ring-2', 'ring-rose-300');
+                nextBtn.classList.add('bg-slate-800', 'hover:bg-slate-900');
+                nextBtnIcon.innerHTML = iconNextNormal;
+                nextBtnText.innerText = "Next Email";
+            }
         }
 
         function loadNextEmail() {
@@ -435,14 +386,12 @@ UI_TEMPLATE = '''
         }
 
         function clearAllInput() {
+            resetNextButton();
             document.getElementById('credentials-input').value = "";
             try {
                 localStorage.removeItem('email_reader_credentials');
-                localStorage.removeItem('email_reader_total_count');
             } catch(e){}
             
-            initialTotalCount = 0;
-            document.getElementById('count-total').innerText = "0";
             document.getElementById('count-remaining').innerText = "0";
 
             document.getElementById('email-display-box').classList.add('hidden');
@@ -459,6 +408,7 @@ UI_TEMPLATE = '''
 
         async function handleFetchOtp(event) {
             event.preventDefault();
+            resetNextButton();
             const lines = getValidLines();
             const errorDiv = document.getElementById('error-msg');
             const submitBtn = document.getElementById('submit-btn');
@@ -655,189 +605,7 @@ def get_otp():
         print(f"Error: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
-
-# ==========================================
-# TELEGRAM BOT CONTROLLER (AUTO-EXPIRE SESSIONS)
-# ==========================================
-
-def get_reply_keyboard():
-    """Build permanent bottom reply keyboard"""
-    markup = ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.row(
-        KeyboardButton("🔄 Check OTP"),
-        KeyboardButton("⏭ Next Email")
-    )
-    return markup
-
-def clean_expired_sessions():
-    """Background cleaner to remove sessions older than 3 hours"""
-    while True:
-        try:
-            current_time = time.time()
-            expired_users = []
-            
-            for chat_id, data in list(user_sessions.items()):
-                if current_time - data.get('timestamp', 0) > SESSION_EXPIRY_SECONDS:
-                    expired_users.append(chat_id)
-            
-            for chat_id in expired_users:
-                user_sessions.pop(chat_id, None)
-                try:
-                    bot.send_message(
-                        chat_id, 
-                        "⏳ *Session Expired!*\nYour previous batch expired after 3 hours. Please send credentials again to continue.",
-                        parse_mode='Markdown'
-                    )
-                except Exception:
-                    pass
-        except Exception as e:
-            print(f"Cleanup thread error: {e}")
-        
-        time.sleep(600)  # Check every 10 minutes
-
-@bot.message_handler(commands=['start'])
-def handle_start(message):
-    welcome_text = (
-        "👋 *Welcome to MicroMail Bot!*\n\n"
-        "Send your credentials list (Max 5 lines at a time).\n"
-        "Format:\n"
-        "`email|password|refresh_token|client_id`\n\n"
-        "⏱ *Note:* Your session will automatically expire after 3 hours."
-    )
-    bot.reply_to(message, welcome_text, parse_mode='Markdown', reply_markup=get_reply_keyboard())
-
-@bot.message_handler(func=lambda msg: msg.text in ["🔄 Check OTP", "Check OTP", "Check", "check"])
-def handle_check_otp_button(message):
-    chat_id = message.chat.id
-    session = user_sessions.get(chat_id)
-
-    # Check if session exists and is not expired
-    if not session or (time.time() - session.get('timestamp', 0) > SESSION_EXPIRY_SECONDS):
-        user_sessions.pop(chat_id, None)
-        bot.reply_to(message, "⚠️ No active credentials found (or expired after 3 hours). Please send credentials again!", reply_markup=get_reply_keyboard())
-        return
-
-    lines = session.get('lines', [])
-    if not lines:
-        bot.reply_to(message, "⚠️ Queue is empty! Please send new credentials.", reply_markup=get_reply_keyboard())
-        return
-
-    status_msg = bot.reply_to(message, "⏳ *Checking OTP...*", parse_mode='Markdown')
-
-    first_line = lines[0]
-    parts = first_line.split('|')
-    
-    if len(parts) < 4:
-        bot.edit_message_text("❌ Invalid credential format in active line!", chat_id=chat_id, message_id=status_msg.message_id)
-        return
-        
-    email = parts[0].strip()
-    refresh_token = parts[2].strip()
-    client_id = parts[3].strip()
-
-    access_token = EmailClient.get_access_token(client_id, refresh_token)
-    if not access_token:
-        bot.edit_message_text(f"❌ Authentication failed for `{email}`", chat_id=chat_id, message_id=status_msg.message_id, parse_mode='Markdown')
-        return
-
-    messages = EmailClient.get_messages(access_token, top=30)
-    found_otps = []
-    seen_otps = set()
-
-    for msg in messages:
-        subject = msg.get('subject', 'No Subject')
-        preview_text = msg.get('bodyPreview', '')
-        body_content = msg.get('body', {}).get('content', '')
-        
-        otp = EmailClient.extract_otp(subject, preview_text, body_content)
-        if otp and otp not in seen_otps:
-            seen_otps.add(otp)
-            found_otps.append(f"Subject: {subject}\nOTP: `{otp}`")
-
-    if found_otps:
-        reply_msg = "\n\n".join(found_otps)
-        bot.edit_message_text(reply_msg, chat_id=chat_id, message_id=status_msg.message_id, parse_mode='Markdown')
-    else:
-        bot.edit_message_text(f"🔍 No OTP found yet for `{email}`", chat_id=chat_id, message_id=status_msg.message_id, parse_mode='Markdown')
-
-@bot.message_handler(func=lambda msg: msg.text in ["⏭ Next Email", "Next Email", "Next", "next"])
-def handle_next_email_button(message):
-    chat_id = message.chat.id
-    session = user_sessions.get(chat_id)
-
-    if not session or (time.time() - session.get('timestamp', 0) > SESSION_EXPIRY_SECONDS):
-        user_sessions.pop(chat_id, None)
-        bot.reply_to(message, "⚠️ Queue is empty (or expired after 3 hours)! Send new credentials to continue.", reply_markup=get_reply_keyboard())
-        return
-
-    lines = session.get('lines', [])
-    if not lines:
-        bot.reply_to(message, "⚠️ Queue is empty! Send new credentials to continue.", reply_markup=get_reply_keyboard())
-        return
-
-    lines.pop(0)
-    session['lines'] = lines
-    session['timestamp'] = time.time()  # Refresh expiration timer on activity
-
-    if not lines:
-        user_sessions.pop(chat_id, None)
-        bot.reply_to(message, "🏁 All emails processed! Send new credentials to continue.", reply_markup=get_reply_keyboard())
-        return
-
-    next_email = lines[0].split('|')[0].strip()
-    bot.reply_to(
-        message, 
-        f"📧 Next Active Email: `{next_email}`\nRemaining in Queue: {len(lines)}", 
-        parse_mode='Markdown', 
-        reply_markup=get_reply_keyboard()
-    )
-
-@bot.message_handler(func=lambda msg: True)
-def handle_credentials_input(message):
-    chat_id = message.chat.id
-    raw_text = message.text.strip()
-    
-    lines = [l.strip() for l in raw_text.split('\n') if l.strip()]
-    if not lines:
-        bot.reply_to(message, "⚠️ Please send valid credentials!", reply_markup=get_reply_keyboard())
-        return
-
-    if len(lines) > 5:
-        lines = lines[:5]
-        bot.reply_to(message, "⚠️ Max 5 lines allowed per batch! Taking the first 5 lines.")
-
-    user_sessions[chat_id] = {
-        'lines': lines,
-        'timestamp': time.time()
-    }
-    current_email = lines[0].split('|')[0].strip()
-
-    status_text = (
-        f"✅ Loaded {len(lines)} email(s).\n\n"
-        f"📧 Current Active Email: `{current_email}`\n"
-        f"Remaining in Queue: {len(lines)}\n\n"
-        f"⏳ Auto-expiring in: *3 hours*"
-    )
-    bot.reply_to(message, status_text, parse_mode='Markdown', reply_markup=get_reply_keyboard())
-
-def run_telegram_bot():
-    print(f"[{APP_NAME}] Telegram Bot is starting...")
-    while True:
-        try:
-            bot.infinity_polling(timeout=10, long_polling_timeout=5)
-        except Exception as e:
-            print(f"Telegram Bot error: {e}")
-
 if __name__ == '__main__':
-    # 1. Start Auto Cleanup Thread for Expired Sessions
-    cleanup_thread = threading.Thread(target=clean_expired_sessions, daemon=True)
-    cleanup_thread.start()
-
-    # 2. Start Telegram Bot in background thread
-    tg_thread = threading.Thread(target=run_telegram_bot, daemon=True)
-    tg_thread.start()
-
-    # 3. Start Web Server
     port = int(os.getenv('PORT', 5000))
     print(f"[{APP_NAME}] Web server serving on http://0.0.0.0:{port} ...")
     serve(app, host='0.0.0.0', port=port)
