@@ -1,0 +1,6 @@
+flask
+waitress
+requests
+beautifulsoup4
+pyotp
+yt-dlp
