@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="bg-white dark:bg-darkcard rounded-3xl border border-slate-200 dark:border-darkborder p-6 sm:p-8 transition-colors duration-200">
+        <div class="flex items-center gap-4 mb-4">
+            <div class="w-12 h-12 rounded-2xl overflow-hidden shadow-sm flex items-center justify-center shrink-0">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="48" height="48" class="w-full h-full">
+                  <rect x="8" y="8" width="112" height="112" rx="32" fill="#2F2F2F"/>
+                  <rect x="16" y="16" width="96" height="96" rx="26" fill="#3A3A3A"/>
+                  <path d="M36 88 V44 L52 68 L64 50 L76 68 L92 44 V88 H82 V62 L70 78 L64 70 L58 78 L46 62 V88 Z" fill="#E5E5E5"/>
+                  <circle cx="40" cy="38" r="3.5" fill="#A0A0A0"/>
+                  <circle cx="88" cy="38" r="3.5" fill="#A0A0A0"/>
+                  <rect x="48" y="94" width="32" height="4" rx="2" fill="#8A8A8A"/>
+                </svg>
+            </div>
+            <div>
+                <h2 class="text-lg sm:text-xl font-extrabold text-slate-900 dark:text-white tracking-tight">MicroTools Workspace</h2>
+                <p class="text-xs text-slate-500 dark:text-slate-400">Select any tool from below to start working</p>
+            </div>
+        </div>
+        
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 pt-4">
+            <a href="/hotmail" class="p-4 rounded-2xl border border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/30 hover:border-indigo-300 dark:hover:border-indigo-500/40 transition group">
+                <div class="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mb-3 group-hover:scale-105 transition-transform">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                </div>
+                <h3 class="text-xs font-bold text-slate-800 dark:text-slate-200">Read Outlook / Hotmail</h3>
+                <p class="text-[11px] text-slate-400 dark:text-slate-500 mt-1">Extract emails and OTP codes</p>
+            </a>
+
+            <a href="/2fa" class="p-4 rounded-2xl border border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/30 hover:border-indigo-300 dark:hover:border-indigo-500/40 transition group">
+                <div class="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mb-3 group-hover:scale-105 transition-transform">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                </div>
+                <h3 class="text-xs font-bold text-slate-800 dark:text-slate-200">Two-Factor Auth</h3>
+                <p class="text-[11px] text-slate-400 dark:text-slate-500 mt-1">Live 2FA code generator</p>
+            </a>
+
+            <a href="/fb-check" class="p-4 rounded-2xl border border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/30 hover:border-indigo-300 dark:hover:border-indigo-500/40 transition group">
+                <div class="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mb-3 group-hover:scale-105 transition-transform">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                </div>
+                <h3 class="text-xs font-bold text-slate-800 dark:text-slate-200">Check FB Number</h3>
+                <p class="text-[11px] text-slate-400 dark:text-slate-500 mt-1">Batch validator with proxy</p>
+            </a>
+
+            <a href="/fb-uid" class="p-4 rounded-2xl border border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/30 hover:border-indigo-300 dark:hover:border-indigo-500/40 transition group">
+                <div class="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mb-3 group-hover:scale-105 transition-transform">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101"/></svg>
+                </div>
+                <h3 class="text-xs font-bold text-slate-800 dark:text-slate-200">FB Link to UID</h3>
+                <p class="text-[11px] text-slate-400 dark:text-slate-500 mt-1">Profile UID extractor</p>
+            </a>
+
+            <a href="/tiktok" class="p-4 rounded-2xl border border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/30 hover:border-indigo-300 dark:hover:border-indigo-500/40 transition group">
+                <div class="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mb-3 group-hover:scale-105 transition-transform">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                </div>
+                <h3 class="text-xs font-bold text-slate-800 dark:text-slate-200">TikTok Downloader</h3>
+                <p class="text-[11px] text-slate-400 dark:text-slate-500 mt-1">HD video player & stream</p>
+            </a>
+
+            <a href="/x-downloader" class="p-4 rounded-2xl border border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/30 hover:border-indigo-300 dark:hover:border-indigo-500/40 transition group">
+                <div class="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mb-3 group-hover:scale-105 transition-transform">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                </div>
+                <h3 class="text-xs font-bold text-slate-800 dark:text-slate-200">X Video Downloader</h3>
+                <p class="text-[11px] text-slate-400 dark:text-slate-500 mt-1">Twitter video player & MP4</p>
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

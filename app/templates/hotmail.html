@@ -1,0 +1,289 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="bg-white dark:bg-darkcard rounded-2xl shadow-sm border border-slate-200 dark:border-darkborder p-4 sm:p-6 transition-colors duration-200">
+        <div class="grid grid-cols-1 mb-5">
+            <div class="bg-amber-50/70 dark:bg-amber-950/30 border border-amber-100 dark:border-amber-900/40 rounded-xl p-3.5 sm:p-4 flex items-center justify-between">
+                <div>
+                    <span class="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 block">Remaining Accounts</span>
+                    <span id="count-remaining" class="text-xl sm:text-2xl font-extrabold text-amber-900 dark:text-amber-200 font-mono">0</span>
+                </div>
+                <div class="p-2.5 bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-300 rounded-lg">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                </div>
+            </div>
+        </div>
+
+        <form id="otp-form" onsubmit="handleFetchOtp(event)" class="space-y-4">
+            <div>
+                <div class="flex items-center justify-between mb-2">
+                    <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Credentials Input</label>
+                    <button type="button" onclick="clearAllInput()" class="text-xs font-medium bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/60 px-2.5 py-1 rounded-lg transition border border-red-100 dark:border-red-900/40 flex items-center gap-1">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                        Clear
+                    </button>
+                </div>
+                <textarea id="credentials-input" rows="7" wrap="off" oninput="handleInstantInput()" placeholder="email|pass|refresh_token|client_id" class="w-full px-3.5 py-3 rounded-xl border border-slate-200 dark:border-darkborder focus:outline-none focus:ring-2 focus:ring-indigo-500 text-xs font-mono bg-slate-50 dark:bg-slate-900/60 text-slate-800 dark:text-slate-200 transition whitespace-pre overflow-x-auto leading-relaxed"></textarea>
+            </div>
+
+            <div id="error-msg" class="hidden p-3 bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 text-xs rounded-lg border border-red-100 dark:border-red-900/40"></div>
+
+            <div class="flex flex-col sm:flex-row gap-2.5 sm:gap-3">
+                <button type="submit" id="submit-btn" class="w-full sm:flex-1 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-medium py-3 rounded-xl shadow-sm transition text-xs sm:text-sm flex items-center justify-center gap-2">
+                    <span>Fetch OTP / Code</span>
+                    <svg id="btn-spinner" class="w-4 h-4 hidden animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                </button>
+                <button type="button" id="next-btn" onclick="handleNextButtonClick()" class="w-full sm:flex-1 bg-slate-800 dark:bg-slate-700 hover:bg-slate-900 dark:hover:bg-slate-600 text-white font-medium py-3 rounded-xl shadow-sm transition-all duration-200 text-xs sm:text-sm flex items-center justify-center gap-2">
+                    <span id="next-btn-icon"><svg class="w-4 h-4 rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7"/></svg></span>
+                    <span id="next-btn-text">Next Email</span>
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <div id="email-display-box" class="hidden bg-white dark:bg-darkcard rounded-xl p-4 border border-slate-200 dark:border-darkborder shadow-sm flex items-center justify-between gap-3 transition-colors duration-200">
+        <div class="min-w-0">
+            <span class="text-[10px] font-bold uppercase text-slate-400 dark:text-slate-500 tracking-wider block">Active Account</span>
+            <span id="target-email-text" class="text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-200 font-mono truncate block"></span>
+        </div>
+        <button onclick="copyToClipboard(currentExtractedEmail, 'Copied', currentExtractedEmail)" class="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs px-3 py-1.5 sm:py-2 rounded-lg transition font-medium shrink-0">Copy</button>
+    </div>
+
+    <div class="space-y-3">
+        <div class="flex justify-between items-center px-1">
+            <h2 class="text-xs font-bold uppercase text-slate-400 dark:text-slate-500 tracking-wider">Messages Received</h2>
+            <span id="mail-count" class="text-xs bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-semibold px-2 py-0.5 rounded-full font-mono">0</span>
+        </div>
+        <div id="otp-results" class="space-y-3">
+            <div class="bg-white dark:bg-darkcard rounded-xl p-8 text-center text-slate-400 dark:text-slate-500 text-xs sm:text-sm border border-slate-200 dark:border-darkborder">
+                Click "Fetch OTP / Code" above to load messages.
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="email-modal" class="fixed inset-0 z-50 bg-slate-900/60 dark:bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-3 sm:p-4">
+    <div class="bg-white dark:bg-darkcard w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-200 dark:border-darkborder overflow-hidden flex flex-col max-h-[85vh]">
+        <div class="p-4 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-darkborder flex items-center justify-between">
+            <div class="min-w-0 pr-4">
+                <h3 id="modal-subject" class="font-bold text-slate-800 dark:text-slate-200 text-xs sm:text-sm truncate"></h3>
+                <p id="modal-from" class="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate"></p>
+            </div>
+            <button type="button" onclick="closeModal()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 bg-slate-200 dark:bg-slate-700 p-1.5 rounded-lg transition shrink-0">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <div class="p-4 sm:p-6 overflow-y-auto flex-1 text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed font-sans" id="modal-body"></div>
+        <div class="p-3 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-darkborder flex justify-end">
+            <button type="button" onclick="closeModal()" class="px-4 py-2 bg-slate-800 dark:bg-slate-700 hover:bg-slate-900 dark:hover:bg-slate-600 text-white text-xs font-medium rounded-lg transition">Close</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let currentExtractedEmail = "";
+    let debounceTimer = null;
+    let fetchedEmailsList = [];
+    let nextBtnConfirmPending = false;
+    let nextBtnTimer = null;
+
+    const iconNextNormal = `<svg class="w-4 h-4 rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7"/></svg>`;
+    const iconNextAlert = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>`;
+
+    window.addEventListener('DOMContentLoaded', () => {
+        try {
+            const saved = localStorage.getItem('email_reader_credentials');
+            if (saved !== null) {
+                document.getElementById('credentials-input').value = saved;
+            }
+        } catch (e) {}
+        handleInstantInput();
+    });
+
+    function getValidLines() {
+        const el = document.getElementById('credentials-input');
+        let lines = el.value.split('\n').map(l => l.trim()).filter(l => l !== "");
+        if (lines.length > 1000) {
+            lines = lines.slice(0, 1000);
+            el.value = lines.join('\n');
+            showToast("Max Limit", "Max 1000 lines accepted.");
+        }
+        return lines;
+    }
+
+    function handleInstantInput() {
+        clearTimeout(debounceTimer);
+        const lines = getValidLines();
+        try {
+            localStorage.setItem('email_reader_credentials', document.getElementById('credentials-input').value);
+        } catch (e) {}
+
+        document.getElementById('count-remaining').innerText = lines.length > 0 ? lines.length - 1 : 0;
+
+        debounceTimer = setTimeout(() => {
+            const emailBox = document.getElementById('email-display-box');
+            const errorDiv = document.getElementById('error-msg');
+            if (lines.length === 0) {
+                emailBox.classList.add('hidden');
+                errorDiv.classList.add('hidden');
+                currentExtractedEmail = "";
+                return;
+            }
+            const parts = lines[0].split('|');
+            if (parts.length > 0 && parts[0].trim() !== "") {
+                currentExtractedEmail = parts[0].trim();
+                document.getElementById('target-email-text').innerText = currentExtractedEmail;
+                emailBox.classList.remove('hidden');
+            }
+        }, 200);
+    }
+
+    function handleNextButtonClick() {
+        const nextBtn = document.getElementById('next-btn');
+        const nextBtnText = document.getElementById('next-btn-text');
+        const nextBtnIcon = document.getElementById('next-btn-icon');
+
+        if (!nextBtnConfirmPending) {
+            nextBtnConfirmPending = true;
+            nextBtn.classList.remove('bg-slate-800', 'dark:bg-slate-700');
+            nextBtn.classList.add('bg-rose-600', 'hover:bg-rose-700', 'ring-2', 'ring-rose-300');
+            nextBtnIcon.innerHTML = iconNextAlert;
+            nextBtnText.innerText = "Confirm Next";
+
+            clearTimeout(nextBtnTimer);
+            nextBtnTimer = setTimeout(() => { resetNextButton(); }, 3000);
+        } else {
+            resetNextButton();
+            loadNextEmail();
+        }
+    }
+
+    function resetNextButton() {
+        nextBtnConfirmPending = false;
+        clearTimeout(nextBtnTimer);
+        const nextBtn = document.getElementById('next-btn');
+        const nextBtnText = document.getElementById('next-btn-text');
+        const nextBtnIcon = document.getElementById('next-btn-icon');
+        if (nextBtn && nextBtnText && nextBtnIcon) {
+            nextBtn.classList.remove('bg-rose-600', 'hover:bg-rose-700', 'ring-2', 'ring-rose-300');
+            nextBtn.classList.add('bg-slate-800', 'dark:bg-slate-700');
+            nextBtnIcon.innerHTML = iconNextNormal;
+            nextBtnText.innerText = "Next Email";
+        }
+    }
+
+    function loadNextEmail() {
+        const input = document.getElementById('credentials-input');
+        let lines = input.value.split('\n');
+        while (lines.length > 0 && lines[0].trim() === "") lines.shift();
+        if (lines.length > 0) lines.shift();
+        input.value = lines.join('\n');
+        document.getElementById('otp-results').innerHTML = `<div class="bg-white dark:bg-darkcard rounded-xl p-8 text-center text-slate-400 dark:text-slate-500 text-xs sm:text-sm border border-slate-200 dark:border-darkborder">Click "Fetch OTP / Code" above to load messages.</div>`;
+        document.getElementById('mail-count').innerText = "0";
+        fetchedEmailsList = [];
+        handleInstantInput();
+    }
+
+    function clearAllInput() {
+        resetNextButton();
+        document.getElementById('credentials-input').value = "";
+        try { localStorage.removeItem('email_reader_credentials'); } catch(e){}
+        document.getElementById('count-remaining').innerText = "0";
+        document.getElementById('email-display-box').classList.add('hidden');
+        document.getElementById('error-msg').classList.add('hidden');
+        document.getElementById('otp-results').innerHTML = `<div class="bg-white dark:bg-darkcard rounded-xl p-8 text-center text-slate-400 dark:text-slate-500 text-xs sm:text-sm border border-slate-200 dark:border-darkborder">Click "Fetch OTP / Code" above to load messages.</div>`;
+        document.getElementById('mail-count').innerText = "0";
+        currentExtractedEmail = "";
+        fetchedEmailsList = [];
+    }
+
+    async function handleFetchOtp(e) {
+        e.preventDefault();
+        resetNextButton();
+        const lines = getValidLines();
+        const errorDiv = document.getElementById('error-msg');
+        const submitBtn = document.getElementById('submit-btn');
+        const btnSpinner = document.getElementById('btn-spinner');
+        const resultsDiv = document.getElementById('otp-results');
+
+        errorDiv.classList.add('hidden');
+        if (lines.length === 0) {
+            errorDiv.textContent = 'Enter credentials';
+            errorDiv.classList.remove('hidden');
+            return;
+        }
+
+        if (lines[0].split('|').length < 4) {
+            errorDiv.textContent = 'Invalid format';
+            errorDiv.classList.remove('hidden');
+            return;
+        }
+
+        submitBtn.disabled = true;
+        btnSpinner.classList.remove('hidden');
+
+        try {
+            const res = await fetch('/api/get-otp', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ credentials: lines[0] })
+            });
+            const data = await res.json();
+            if (data.success) {
+                fetchedEmailsList = data.emails || [];
+                document.getElementById('mail-count').innerText = fetchedEmailsList.length;
+
+                if (fetchedEmailsList.length === 0) {
+                    resultsDiv.innerHTML = `<div class="bg-white dark:bg-darkcard rounded-xl p-6 text-center text-slate-500 dark:text-slate-400 text-xs sm:text-sm border border-slate-200 dark:border-darkborder">No emails found</div>`;
+                    return;
+                }
+
+                resultsDiv.innerHTML = fetchedEmailsList.map((item, index) => `
+                    <div class="bg-white dark:bg-darkcard rounded-xl p-4 sm:p-5 border border-slate-200 dark:border-darkborder shadow-sm hover:border-indigo-300 dark:hover:border-indigo-500/50 transition cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4" onclick="openEmailModal(${index})">
+                        <div class="space-y-1 min-w-0 flex-1">
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 px-2 py-0.5 rounded truncate max-w-[130px]">${item.from}</span>
+                                <span class="text-[10px] text-slate-400 dark:text-slate-500">${item.date}</span>
+                            </div>
+                            <h3 class="text-xs sm:text-sm font-medium text-slate-800 dark:text-slate-200 truncate">${item.subject}</h3>
+                            <p class="text-[11px] text-slate-400 dark:text-slate-500 truncate">${item.preview || ''}</p>
+                        </div>
+                        <div class="bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-darkborder rounded-xl p-2.5 sm:p-3 flex items-center justify-between sm:justify-end gap-3 min-w-[150px]" onclick="event.stopPropagation()">
+                            <div class="text-right">
+                                <div class="text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase">Code</div>
+                                <div class="text-base sm:text-lg font-extrabold text-slate-900 dark:text-slate-100 tracking-wider font-mono">${item.otp ? item.otp : '<span class="text-xs font-normal text-slate-400">None</span>'}</div>
+                            </div>
+                            ${item.otp ? `<button type="button" onclick="copyToClipboard('${item.otp}', 'OTP Copied', '${item.otp}')" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs px-2.5 py-1.5 rounded-lg transition font-medium">Copy</button>` : ''}
+                        </div>
+                    </div>
+                `).join('');
+            } else {
+                errorDiv.textContent = 'An error occurred. Please try again.';
+                errorDiv.classList.remove('hidden');
+            }
+        } catch (err) {
+            errorDiv.textContent = 'An error occurred. Please try again.';
+            errorDiv.classList.remove('hidden');
+        } finally {
+            submitBtn.disabled = false;
+            btnSpinner.classList.add('hidden');
+        }
+    }
+
+    function openEmailModal(index) {
+        const email = fetchedEmailsList[index];
+        if (!email) return;
+        document.getElementById('modal-subject').innerText = email.subject || 'No Subject';
+        document.getElementById('modal-from').innerText = `From: ${email.from} | Time: ${email.date}`;
+        document.getElementById('modal-body').innerHTML = email.body || email.preview || 'No content';
+        document.getElementById('email-modal').classList.remove('hidden');
+    }
+
+    function closeModal() {
+        document.getElementById('email-modal').classList.add('hidden');
+    }
+</script>
+{% endblock %}

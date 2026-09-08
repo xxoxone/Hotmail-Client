@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="bg-white dark:bg-darkcard rounded-2xl shadow-sm border border-slate-200 dark:border-darkborder p-4 sm:p-6 space-y-5 transition-colors duration-200">
+    <div>
+        <div class="flex items-center justify-between mb-2">
+            <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Video URL</label>
+            <button type="button" onclick="clearTTInput()" class="text-xs font-medium bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/60 px-2.5 py-1 rounded-lg transition border border-red-100 dark:border-red-900/40 flex items-center gap-1">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                Clear
+            </button>
+        </div>
+        <input type="text" id="tt-url" placeholder="https://www.tiktok.com/@username/video/123456789" class="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-darkborder focus:outline-none focus:ring-2 focus:ring-indigo-500 text-xs sm:text-sm font-mono bg-slate-50 dark:bg-slate-900/60 text-slate-800 dark:text-slate-200">
+    </div>
+    <button onclick="downloadTT()" id="btn-tt-fetch" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 rounded-xl transition text-xs sm:text-sm flex items-center justify-center gap-2">
+        <span>Process</span>
+    </button>
+
+    <div id="tt-result" class="hidden mt-6 pt-6 border-t border-slate-100 dark:border-darkborder space-y-4">
+        <div class="rounded-2xl overflow-hidden bg-black flex items-center justify-center aspect-video max-h-[440px] shadow-sm">
+            <video id="tt-player" controls playsinline class="w-full h-full max-h-[440px]"></video>
+        </div>
+        <div>
+            <a id="tt-dl" href="#" target="_blank" class="w-full text-center bg-indigo-600 hover:bg-indigo-700 text-white text-xs sm:text-sm font-medium py-3 rounded-xl transition flex items-center justify-center gap-2 shadow-sm">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                <span>Download</span>
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function clearTTInput() {
+        document.getElementById('tt-url').value = '';
+        document.getElementById('tt-result').classList.add('hidden');
+        const player = document.getElementById('tt-player');
+        player.pause();
+        player.src = '';
+    }
+
+    async function downloadTT() {
+        const url = document.getElementById('tt-url').value.trim();
+        if(!url) return;
+        const btn = document.getElementById('btn-tt-fetch');
+        const resBox = document.getElementById('tt-result');
+        const dlLink = document.getElementById('tt-dl');
+        const player = document.getElementById('tt-player');
+
+        btn.disabled = true;
+        btn.innerText = "Processing...";
+        resBox.classList.add('hidden');
+
+        try {
+            const res = await fetch('/api/download-tiktok', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ url })
+            });
+            const data = await res.json();
+            if(data.success && data.download_url) {
+                const streamUrl = data.play_url || data.download_url;
+                player.src = streamUrl;
+                player.load();
+                dlLink.href = data.download_url;
+                resBox.classList.remove('hidden');
+            } else {
+                showToast("Error", "An error occurred. Please try again.");
+            }
+        } catch (err) {
+            showToast("Error", "An error occurred. Please try again.");
+        } finally {
+            btn.disabled = false;
+            btn.innerText = "Process";
+        }
+    }
+</script>
+{% endblock %}

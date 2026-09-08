@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="bg-white dark:bg-darkcard rounded-2xl shadow-sm border border-slate-200 dark:border-darkborder p-4 sm:p-6 space-y-4 transition-colors duration-200">
+        <div>
+            <div class="flex items-center justify-between mb-2">
+                <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Proxy (Optional)</label>
+                <button type="button" onclick="document.getElementById('fb-proxy').value=''" class="text-xs font-medium text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">Clear</button>
+            </div>
+            <input type="text" id="fb-proxy" placeholder="ip:port or ip:port:user:pass" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-darkborder focus:outline-none focus:ring-2 focus:ring-indigo-500 text-xs font-mono bg-slate-50 dark:bg-slate-900/60 text-slate-800 dark:text-slate-200">
+        </div>
+
+        <div>
+            <div class="flex items-center justify-between mb-2">
+                <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Number / Email List</label>
+                <button type="button" onclick="clearBatchInput()" class="text-xs font-medium bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/60 px-2.5 py-1 rounded-lg transition border border-red-100 dark:border-red-900/40 flex items-center gap-1">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                    Clear
+                </button>
+            </div>
+            <textarea id="fb-input" rows="6" placeholder="One per line" class="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-darkborder focus:outline-none focus:ring-2 focus:ring-indigo-500 text-xs sm:text-sm font-mono bg-slate-50 dark:bg-slate-900/60 text-slate-800 dark:text-slate-200 leading-relaxed"></textarea>
+        </div>
+
+        <button onclick="startBatchCheck()" id="btn-batch-check" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 rounded-xl transition text-xs sm:text-sm flex items-center justify-center gap-2">
+            <span>Start</span>
+        </button>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="bg-white dark:bg-darkcard rounded-2xl border border-slate-200 dark:border-darkborder shadow-sm p-4 sm:p-5 flex flex-col h-[420px] transition-colors duration-200">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-darkborder">
+                <div class="flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                    <h3 class="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-200">Found</h3>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span id="count-found" class="text-xs font-bold font-mono bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded-md">0</span>
+                    <button onclick="copyOutputText('found-list', 'Found Copied')" class="text-xs text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded">Copy</button>
+                </div>
+            </div>
+            <textarea id="found-list" readonly placeholder="Found items" class="flex-1 w-full mt-3 p-3 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-darkborder rounded-xl font-mono text-xs text-emerald-800 dark:text-emerald-400 resize-none focus:outline-none leading-relaxed"></textarea>
+        </div>
+
+        <div class="bg-white dark:bg-darkcard rounded-2xl border border-slate-200 dark:border-darkborder shadow-sm p-4 sm:p-5 flex flex-col h-[420px] transition-colors duration-200">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-darkborder">
+                <div class="flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span>
+                    <h3 class="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-200">Not Found</h3>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span id="count-not-found" class="text-xs font-bold font-mono bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 px-2 py-0.5 rounded-md">0</span>
+                    <button onclick="copyOutputText('not-found-list', 'Not Found Copied')" class="text-xs text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded">Copy</button>
+                </div>
+            </div>
+            <textarea id="not-found-list" readonly placeholder="Not found items" class="flex-1 w-full mt-3 p-3 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-darkborder rounded-xl font-mono text-xs text-slate-500 dark:text-slate-400 resize-none focus:outline-none leading-relaxed"></textarea>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function clearBatchInput() {
+        document.getElementById('fb-input').value = '';
+        document.getElementById('found-list').value = '';
+        document.getElementById('not-found-list').value = '';
+        document.getElementById('count-found').innerText = '0';
+        document.getElementById('count-not-found').innerText = '0';
+    }
+
+    async function startBatchCheck() {
+        const raw = document.getElementById('fb-input').value;
+        const proxy = document.getElementById('fb-proxy').value.trim();
+        const items = raw.split('\n').map(x => x.trim()).filter(x => x);
+        if (items.length === 0) return;
+
+        const btn = document.getElementById('btn-batch-check');
+        const foundArea = document.getElementById('found-list');
+        const notFoundArea = document.getElementById('not-found-list');
+        const countFound = document.getElementById('count-found');
+        const countNotFound = document.getElementById('count-not-found');
+
+        btn.disabled = true;
+        foundArea.value = '';
+        notFoundArea.value = '';
+        let foundArr = [];
+        let notFoundArr = [];
+
+        for (let i = 0; i < items.length; i++) {
+            const target = items[i];
+            btn.innerText = `Checking (${i + 1}/${items.length})`;
+
+            try {
+                const res = await fetch('/api/check-fb', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ identifier: target, proxy: proxy })
+                });
+                const data = await res.json();
+
+                if (data.found) {
+                    foundArr.push(target);
+                    foundArea.value = foundArr.join('\n');
+                    countFound.innerText = foundArr.length;
+                } else {
+                    notFoundArr.push(target);
+                    notFoundArea.value = notFoundArr.join('\n');
+                    countNotFound.innerText = notFoundArr.length;
+                }
+            } catch(e) {}
+        }
+
+        btn.disabled = false;
+        btn.innerText = "Start";
+        showToast("Complete", `Found: ${foundArr.length}, Not Found: ${notFoundArr.length}`);
+    }
+
+    function copyOutputText(elementId, toastMsg) {
+        const text = document.getElementById(elementId).value.trim();
+        if (text) {
+            copyToClipboard(text, toastMsg, "Copied");
+        }
+    }
+</script>
+{% endblock %}
