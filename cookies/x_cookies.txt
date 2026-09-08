@@ -1,0 +1,11 @@
+# Netscape HTTP Cookie File
+.x.com	TRUE	/	TRUE	0	auth_token	a23208ffdd139ca9fd1eaa857b84b721c28d7478
+.x.com	TRUE	/	TRUE	0	ct0	666adb51393fecdfdf7f18a6f3396fbf4acec69fb701741531106abb8082580566ebb640ae34c9ad98760a28eaa7bc19f2706522137e09934335b93d633d65ab781a4d8d9d2f235a238c71f54cf65dad
+.x.com	TRUE	/	TRUE	0	twid	u%3D2074859647274831872
+.x.com	TRUE	/	FALSE	0	guest_id	v1%3A178883925777787174
+.x.com	TRUE	/	FALSE	0	personalization_id	"v1_CbUiVxcPOJ6Hmj1yT/WqXQ=="
+.twitter.com	TRUE	/	TRUE	0	auth_token	a23208ffdd139ca9fd1eaa857b84b721c28d7478
+.twitter.com	TRUE	/	TRUE	0	ct0	666adb51393fecdfdf7f18a6f3396fbf4acec69fb701741531106abb8082580566ebb640ae34c9ad98760a28eaa7bc19f2706522137e09934335b93d633d65ab781a4d8d9d2f235a238c71f54cf65dad
+.twitter.com	TRUE	/	TRUE	0	twid	u%3D2074859647274831872
+.twitter.com	TRUE	/	FALSE	0	guest_id	v1%3A178883925777787174
+.twitter.com	TRUE	/	FALSE	0	personalization_id	"v1_CbUiVxcPOJ6Hmj1yT/WqXQ=="
